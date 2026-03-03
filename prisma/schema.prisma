@@ -1,0 +1,154 @@
+generator client {
+  provider        = "prisma-client"
+  previewFeatures = ["driverAdapters"]
+  output          = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  CREATED
+  PAID
+  FAILED
+  CANCELLED
+  SHIPPED
+  DELIVERED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  phone     String?  @unique
+  password  String
+  role      UserRole @default(CUSTOMER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cartItems CartItem[]
+  orders    Order[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+
+  // optional: base price, variants can override
+  basePrice   Int?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  images      ProductImage[]
+  variants    Variant[]
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  url       String
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Variant {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  size      String  // e.g. "Small", "Medium", "Large" or dimensions
+  color     String  // e.g. "Mint", "Black"
+  shape     String  // e.g. "D-Cut", "U-Cut", "Box Bag"
+
+  price     Int     // in paise? We'll store INR in paise for payment safety
+  stock     Int     @default(0)
+  sku       String? @unique
+
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cartItems CartItem[]
+  orderItems OrderItem[]
+}
+
+model CartItem {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  variantId  String
+  variant    Variant  @relation(fields: [variantId], references: [id])
+
+  quantity   Int      @default(1)
+
+  // THIS is the important part:
+  customText String?  // customer-entered text printed on bag
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, variantId, customText])
+}
+
+model Order {
+  id               String      @id @default(cuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id])
+
+  status           OrderStatus @default(CREATED)
+
+  subtotal         Int
+  shipping         Int @default(0)
+  total            Int
+
+  // Address snapshot
+  shipName         String
+  shipPhone        String
+  shipAddressLine1 String
+  shipAddressLine2 String?
+  shipCity         String
+  shipState        String
+  shipPincode      String
+
+  // Razorpay fields
+  razorpayOrderId  String?
+  razorpayPaymentId String?
+  razorpaySignature String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  items            OrderItem[]
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  variantId  String
+  variant    Variant @relation(fields: [variantId], references: [id])
+
+  quantity   Int
+  unitPrice  Int
+
+  // snapshot the custom text (VERY IMPORTANT)
+  customText String?
+
+  // optional snapshots for safety (if variant changes later)
+  productTitle String
+  size        String
+  color       String
+  shape       String
+}
