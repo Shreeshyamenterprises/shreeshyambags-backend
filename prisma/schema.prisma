@@ -1,11 +1,10 @@
 generator client {
-  provider        = "prisma-client"
-  previewFeatures = ["driverAdapters"]
-  output          = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
@@ -13,44 +12,32 @@ enum UserRole {
   ADMIN
 }
 
-enum OrderStatus {
-  CREATED
-  PAID
-  FAILED
-  CANCELLED
-  SHIPPED
-  DELIVERED
-}
-
 model User {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   name      String?
-  email     String   @unique
-  phone     String?  @unique
+  email     String     @unique
+  phone     String?    @unique
   password  String
-  role      UserRole @default(CUSTOMER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  cartItems CartItem[]
+  role      UserRole   @default(CUSTOMER)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   orders    Order[]
+  cartItems CartItem[]
 }
 
 model Product {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   title       String
-  slug        String   @unique
+  slug        String  @unique
   description String?
-  isActive    Boolean  @default(true)
-
-  // optional: base price, variants can override
+  isActive    Boolean @default(true)
   basePrice   Int?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  images      ProductImage[]
-  variants    Variant[]
+  images   ProductImage[]
+  variants Variant[]
 }
 
 model ProductImage {
@@ -65,54 +52,65 @@ model Variant {
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  size      String  // e.g. "Small", "Medium", "Large" or dimensions
-  color     String  // e.g. "Mint", "Black"
-  shape     String  // e.g. "D-Cut", "U-Cut", "Box Bag"
+  size  String
+  color String
+  shape String
 
-  price     Int     // in paise? We'll store INR in paise for payment safety
-  stock     Int     @default(0)
-  sku       String? @unique
-
-  isActive  Boolean @default(true)
+  price    Int
+  stock    Int     @default(0)
+  sku      String? @unique
+  isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cartItems CartItem[]
+  cartItems  CartItem[]
   orderItems OrderItem[]
+
+  @@index([productId])
 }
 
 model CartItem {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  variantId  String
-  variant    Variant  @relation(fields: [variantId], references: [id])
+  variantId String
+  variant   Variant @relation(fields: [variantId], references: [id])
 
-  quantity   Int      @default(1)
+  quantity Int @default(1)
 
-  // THIS is the important part:
-  customText String?  // customer-entered text printed on bag
+  // IMPORTANT: customer-entered text for printing on bag
+  customText String?
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  // If same variant + same customText is added again, we will increase quantity
   @@unique([userId, variantId, customText])
+  @@index([userId])
+}
+
+enum OrderStatus {
+  CREATED
+  PAID
+  FAILED
+  CANCELLED
+  SHIPPED
+  DELIVERED
 }
 
 model Order {
-  id               String      @id @default(cuid())
-  userId           String
-  user             User        @relation(fields: [userId], references: [id])
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  status           OrderStatus @default(CREATED)
+  status OrderStatus @default(CREATED)
 
-  subtotal         Int
-  shipping         Int @default(0)
-  total            Int
+  subtotal Int
+  shipping Int @default(0)
+  total    Int
 
-  // Address snapshot
   shipName         String
   shipPhone        String
   shipAddressLine1 String
@@ -121,34 +119,34 @@ model Order {
   shipState        String
   shipPincode      String
 
-  // Razorpay fields
-  razorpayOrderId  String?
+  razorpayOrderId   String?
   razorpayPaymentId String?
   razorpaySignature String?
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  items            OrderItem[]
+  items OrderItem[]
+
+  @@index([userId])
 }
 
 model OrderItem {
-  id         String  @id @default(cuid())
-  orderId    String
-  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  variantId  String
-  variant    Variant @relation(fields: [variantId], references: [id])
+  variantId String
+  variant   Variant @relation(fields: [variantId], references: [id])
 
   quantity   Int
   unitPrice  Int
-
-  // snapshot the custom text (VERY IMPORTANT)
   customText String?
 
-  // optional snapshots for safety (if variant changes later)
   productTitle String
-  size        String
-  color       String
-  shape       String
+  size         String
+  color        String
+  shape        String
+
+  @@index([orderId])
 }
