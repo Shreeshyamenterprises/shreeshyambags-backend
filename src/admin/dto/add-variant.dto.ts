@@ -1,25 +1,53 @@
-import { IsInt, IsOptional, IsString, Min } from "class-validator";
+import {
+  IsArray,
+  IsInt,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+
+class PricingTierDto {
+  @IsInt()
+  minQtyKg: number;
+
+  @IsInt()
+  pricePerKg: number;
+}
 
 export class AddVariantDto {
   @IsString()
-  size!: string;
+  size: string;
 
   @IsString()
-  color!: string;
+  color: string;
 
   @IsString()
-  shape!: string;
-
-  @IsInt()
-  @Min(0)
-  price!: number; // paise
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  stock?: number = 0;
+  shape: string;
 
   @IsOptional()
   @IsString()
   sku?: string;
+
+  @IsOptional()
+  @IsInt()
+  stock?: number;
+
+  @IsOptional()
+  @IsInt()
+  price?: number;
+
+  @IsOptional()
+  @IsInt()
+  gsm?: number;
+
+  @IsOptional()
+  @IsInt()
+  pricePerKg?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PricingTierDto)
+  pricingTiers?: PricingTierDto[];
 }

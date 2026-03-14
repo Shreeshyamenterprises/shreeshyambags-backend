@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -20,7 +21,6 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
-import { Delete } from '@nestjs/common';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -77,13 +77,20 @@ export class AdminController {
     return this.admin.deleteImage(id);
   }
 
+  @Delete('products/:id')
+  deleteProduct(@Param('id') id: string) {
+    return this.admin.deleteProduct(id);
+  }
+
   @Post('products/:id/images')
   @UseInterceptors(
     FileInterceptor('image', {
       storage: diskStorage({
         destination: './uploads',
         filename: (_req, file, cb) => {
-          const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
+          const uniqueName = `${Date.now()}-${Math.round(
+            Math.random() * 1e9,
+          )}${extname(file.originalname)}`;
           cb(null, uniqueName);
         },
       }),
@@ -99,5 +106,23 @@ export class AdminController {
 
     const result = await this.cloudinary.uploadImage(file.path);
     return this.admin.addProductImage(productId, result.secure_url);
+  }
+
+  @Get('quotes')
+  getQuotes() {
+    return this.admin.getQuotes();
+  }
+
+  @Patch('quotes/:id')
+  updateQuote(
+    @Param('id') id: string,
+    @Body()
+    dto: {
+      status?: 'PENDING' | 'REVIEWED' | 'APPROVED' | 'REJECTED';
+      adminPricePerKg?: number;
+      adminNote?: string;
+    },
+  ) {
+    return this.admin.updateQuote(id, dto);
   }
 }
