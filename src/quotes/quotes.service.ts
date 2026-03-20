@@ -8,8 +8,18 @@ export class QuotesService {
 
   async create(dto: CreateQuoteDto) {
     return this.prisma.quoteRequest.create({
+      data: { ...dto, enquiryType: 'QUOTE' },
+    });
+  }
+
+  async createContact(dto: { name: string; phone: string; email?: string; message?: string }) {
+    return this.prisma.quoteRequest.create({
       data: {
-        ...dto,
+        name: dto.name,
+        phone: dto.phone,
+        email: dto.email,
+        message: dto.message,
+        enquiryType: 'CONTACT',
       },
     });
   }

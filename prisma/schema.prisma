@@ -23,6 +23,9 @@ model User {
   updatedAt DateTime   @updatedAt
   orders    Order[]
   cartItems CartItem[]
+
+  resetToken       String?   @unique
+  resetTokenExpiry DateTime?
 }
 
 model Product {
@@ -171,20 +174,22 @@ model PricingTier {
 model QuoteRequest {
   id        String  @id @default(cuid())
   userId    String?
-  productId String
+  productId String?
   variantId String?
 
   name  String
   phone String
   email String?
 
-  quantityKg Int
+  quantityKg Int     @default(0)
   gsm        Int?
 
   printing Boolean @default(false)
   logoUrl  String?
 
   message String?
+
+  enquiryType String @default("QUOTE")
 
   status QuoteStatus @default(PENDING)
 
@@ -194,7 +199,7 @@ model QuoteRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  product Product  @relation(fields: [productId], references: [id])
+  product Product? @relation(fields: [productId], references: [id])
   variant Variant? @relation(fields: [variantId], references: [id])
 }
 

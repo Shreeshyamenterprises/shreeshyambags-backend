@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   Post,
   Req,
   Res,
@@ -10,6 +11,9 @@ import {
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
@@ -28,10 +32,26 @@ export class AuthController {
     return this.auth.login(dto);
   }
 
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.auth.forgotPassword(dto);
+  }
+
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('me')
   me(@CurrentUser() user: any) {
-    return { user };
+    return this.auth.getMe(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me')
+  updateProfile(@CurrentUser() user: any, @Body() dto: UpdateProfileDto) {
+    return this.auth.updateProfile(user.id, dto);
   }
 
   @Get('google')
@@ -44,9 +64,7 @@ export class AuthController {
   @UseGuards(GoogleAuthGuard)
   async googleAuthCallback(@Req() req: any, @Res() res: any) {
     const result = await this.auth.loginWithGoogle(req.user);
-
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-
     return res.redirect(
       `${frontendUrl}/auth/google-success?token=${result.token}`,
     );
