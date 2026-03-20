@@ -23,21 +23,24 @@ model User {
   updatedAt DateTime   @updatedAt
   orders    Order[]
   cartItems CartItem[]
+
+  resetToken       String?   @unique
+  resetTokenExpiry DateTime?
 }
 
 model Product {
-  id          String  @id @default(cuid())
+  id          String   @id @default(cuid())
   title       String
-  slug        String  @unique
+  slug        String   @unique
   description String?
-  isActive    Boolean @default(true)
+  isActive    Boolean  @default(true)
   basePrice   Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  images   ProductImage[]
-  variants Variant[]
+  variants      Variant[]
+  images        ProductImage[]
+  quoteRequests QuoteRequest[]
 }
 
 model ProductImage {
@@ -50,24 +53,29 @@ model ProductImage {
 model Variant {
   id        String  @id @default(cuid())
   productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
 
-  size  String
-  color String
-  shape String
-
-  price    Int
+  size     String
+  color    String
+  shape    String
+  sku      String?
   stock    Int     @default(0)
-  sku      String? @unique
   isActive Boolean @default(true)
+
+  // old retail style price
+  price Int
+
+  // new B2B fields
+  gsm        Int?
+  pricePerKg Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cartItems  CartItem[]
-  orderItems OrderItem[]
-
-  @@index([productId])
+  pricingTiers  PricingTier[]
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+  quoteRequests QuoteRequest[]
 }
 
 model CartItem {
@@ -149,4 +157,55 @@ model OrderItem {
   shape        String
 
   @@index([orderId])
+}
+
+model PricingTier {
+  id        String  @id @default(cuid())
+  variantId String
+  variant   Variant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  minQtyKg   Int
+  pricePerKg Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model QuoteRequest {
+  id        String  @id @default(cuid())
+  userId    String?
+  productId String?
+  variantId String?
+
+  name  String
+  phone String
+  email String?
+
+  quantityKg Int     @default(0)
+  gsm        Int?
+
+  printing Boolean @default(false)
+  logoUrl  String?
+
+  message String?
+
+  enquiryType String @default("QUOTE")
+
+  status QuoteStatus @default(PENDING)
+
+  adminPricePerKg Int?
+  adminNote       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product? @relation(fields: [productId], references: [id])
+  variant Variant? @relation(fields: [variantId], references: [id])
+}
+
+enum QuoteStatus {
+  PENDING
+  REVIEWED
+  APPROVED
+  REJECTED
 }

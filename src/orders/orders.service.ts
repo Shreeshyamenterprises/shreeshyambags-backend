@@ -8,7 +8,6 @@ import Razorpay from 'razorpay';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
-import { async } from 'rxjs';
 
 @Injectable()
 export class OrdersService {
@@ -41,18 +40,24 @@ export class OrdersService {
       if (!item.variant.isActive || !item.variant.product.isActive) {
         throw new BadRequestException('One or more cart items are unavailable');
       }
-      if (item.variant.stock < item.quantity) {
+      // Only enforce stock if stock tracking is enabled (stock > 0)
+      if (item.variant.stock > 0 && item.variant.stock < item.quantity) {
         throw new BadRequestException(
           `Insufficient stock for ${item.variant.product.title}`,
         );
       }
     }
 
-    const subtotal = cartItems.reduce(
-      (sum, item) => sum + item.quantity * item.variant.price,
-      0,
-    );
-    const shipping = 0;
+    // pricePerKg is in rupees; price is in paise. Normalize to paise.
+    const subtotal = cartItems.reduce((sum, item) => {
+      const unitPricePaise =
+        item.variant.pricePerKg != null
+          ? item.variant.pricePerKg * 100
+          : item.variant.price;
+      return sum + unitPricePaise * item.quantity;
+    }, 0);
+    const totalKg = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+    const shipping = totalKg * 800; // ₹8 per kg (in paise)
     const total = subtotal + shipping;
 
     const order = await this.prisma.order.create({
@@ -86,27 +91,33 @@ export class OrdersService {
       },
     });
 
-    const razorpayOrder = await this.razorpay.orders.create({
-      amount: total,
-      currency: 'INR',
-      receipt: order.id.slice(0, 40),
-      notes: {
-        dbOrderId: order.id,
-        userId,
-      },
-    });
+    let razorpayOrderId: string | null = null;
 
-    await this.prisma.order.update({
-      where: { id: order.id },
-      data: { razorpayOrderId: razorpayOrder.id },
-    });
+    try {
+      if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+        const razorpayOrder = await this.razorpay.orders.create({
+          amount: total,
+          currency: 'INR',
+          receipt: order.id.slice(0, 40),
+          notes: { dbOrderId: order.id, userId },
+        });
+        razorpayOrderId = razorpayOrder.id;
+        await this.prisma.order.update({
+          where: { id: order.id },
+          data: { razorpayOrderId },
+        });
+      }
+    } catch (err) {
+      // Razorpay failure should not block order creation
+      console.error('Razorpay order creation failed:', err);
+    }
 
     return {
       orderId: order.id,
-      razorpayOrderId: razorpayOrder.id,
+      razorpayOrderId,
       amount: total,
       currency: 'INR',
-      keyId: process.env.RAZORPAY_KEY_ID,
+      keyId: process.env.RAZORPAY_KEY_ID ?? null,
     };
   }
 
@@ -187,7 +198,9 @@ export class OrdersService {
           include: {
             variant: {
               include: {
-                product: true,
+                product: {
+                  include: { images: true },
+                },
               },
             },
           },

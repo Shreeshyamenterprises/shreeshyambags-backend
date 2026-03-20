@@ -27,14 +27,24 @@ export class CartService {
       },
     });
 
-    const subtotal = items.reduce(
-      (sum, item) => sum + item.variant.price * item.quantity,
-      0,
-    );
+    // pricePerKg is stored in rupees; price is stored in paise.
+    // Normalize everything to paise so the frontend can divide by 100 consistently.
+    const subtotal = items.reduce((sum, item) => {
+      const unitPricePaise =
+        item.variant.pricePerKg != null
+          ? item.variant.pricePerKg * 100
+          : item.variant.price;
+      return sum + unitPricePaise * item.quantity;
+    }, 0);
+    const totalKg = items.reduce((sum, item) => sum + item.quantity, 0);
+    const shipping = totalKg * 800; // ₹8 per kg (stored in paise)
 
     return {
       items,
       subtotal,
+      shipping,
+      totalKg,
+      total: subtotal + shipping,
     };
   }
 
@@ -48,8 +58,8 @@ export class CartService {
     if ((dto.quantity ?? 1) < 1)
       throw new BadRequestException('Quantity must be >= 1');
 
-    // Optional: stock check
-    if (variant.stock < (dto.quantity ?? 1)) {
+    // Stock check only applies when stock tracking is enabled (stock > 0)
+    if (variant.stock > 0 && variant.stock < (dto.quantity ?? 1)) {
       throw new BadRequestException('Not enough stock');
     }
 

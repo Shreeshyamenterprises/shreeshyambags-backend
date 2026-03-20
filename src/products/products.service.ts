@@ -66,6 +66,9 @@ export class ProductsService {
         images: true,
         variants: {
           where: { isActive: true },
+          include: {
+            pricingTiers: true,
+          },
           orderBy: { createdAt: 'asc' },
         },
       },

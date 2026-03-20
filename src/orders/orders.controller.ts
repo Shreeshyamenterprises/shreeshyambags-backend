@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { VerifyPaymentDto } from './dto/verify-payment.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
@@ -12,6 +13,11 @@ export class OrdersController {
   @Post()
   create(@CurrentUser() user: any, @Body() dto: CreateOrderDto) {
     return this.orders.create(user.id, dto);
+  }
+
+  @Post('verify')
+  verify(@CurrentUser() user: any, @Body() dto: VerifyPaymentDto) {
+    return this.orders.verify(user.id, dto);
   }
 
   @Get('me')

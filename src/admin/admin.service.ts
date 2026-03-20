@@ -43,9 +43,22 @@ export class AdminService {
         size: dto.size,
         color: dto.color,
         shape: dto.shape,
-        price: dto.price,
-        stock: dto.stock ?? 0,
         sku: dto.sku,
+        stock: dto.stock ?? 0,
+        price: dto.price ?? 0,
+        gsm: dto.gsm,
+        pricePerKg: dto.pricePerKg,
+        pricingTiers: dto.pricingTiers?.length
+          ? {
+              create: dto.pricingTiers.map((tier) => ({
+                minQtyKg: tier.minQtyKg,
+                pricePerKg: tier.pricePerKg,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        pricingTiers: true,
       },
     });
   }
@@ -132,6 +145,12 @@ export class AdminService {
     });
   }
 
+  async deleteProduct(id: string) {
+    return this.prisma.product.delete({
+      where: { id },
+    });
+  }
+
   async deleteImage(id: string) {
     const image = await this.prisma.productImage.findUnique({
       where: { id },
@@ -176,6 +195,36 @@ export class AdminService {
       data: {
         productId,
         url: imageUrl,
+      },
+    });
+  }
+
+  async getQuotes() {
+    return this.prisma.quoteRequest.findMany({
+      include: {
+        product: true,
+        variant: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async updateQuote(
+    id: string,
+    dto: {
+      status?: 'PENDING' | 'REVIEWED' | 'APPROVED' | 'REJECTED';
+      adminPricePerKg?: number;
+      adminNote?: string;
+    },
+  ) {
+    return this.prisma.quoteRequest.update({
+      where: { id },
+      data: {
+        status: dto.status,
+        adminPricePerKg: dto.adminPricePerKg,
+        adminNote: dto.adminNote,
       },
     });
   }
