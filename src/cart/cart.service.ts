@@ -27,20 +27,23 @@ export class CartService {
       },
     });
 
+    // Filter out orphaned items (variant or product was deleted)
+    const validItems = items.filter((item) => item.variant && item.variant.product);
+
     // pricePerKg is stored in rupees; price is stored in paise.
     // Normalize everything to paise so the frontend can divide by 100 consistently.
-    const subtotal = items.reduce((sum, item) => {
+    const subtotal = validItems.reduce((sum, item) => {
       const unitPricePaise =
         item.variant.pricePerKg != null
           ? item.variant.pricePerKg * 100
           : item.variant.price;
       return sum + unitPricePaise * item.quantity;
     }, 0);
-    const totalKg = items.reduce((sum, item) => sum + item.quantity, 0);
+    const totalKg = validItems.reduce((sum, item) => sum + item.quantity, 0);
     const shipping = totalKg * 800; // ₹8 per kg (stored in paise)
 
     return {
-      items,
+      items: validItems,
       subtotal,
       shipping,
       totalKg,
@@ -65,34 +68,31 @@ export class CartService {
 
     const customText = dto.customText?.trim() ?? '';
 
-    // If same user + same variant + same customText exists, increase quantity
-    const item = await this.prisma.cartItem.upsert({
-      where: {
-        userId_variantId_customText: {
-          userId,
-          variantId: dto.variantId,
-          customText,
+    const include = {
+      variant: {
+        include: {
+          product: { select: { id: true, title: true, slug: true } },
         },
       },
-      update: {
-        quantity: { increment: dto.quantity ?? 1 },
-      },
-      create: {
-        userId,
-        variantId: dto.variantId,
-        customText,
-        quantity: dto.quantity ?? 1,
-      },
-      include: {
-        variant: {
-          include: {
-            product: { select: { id: true, title: true, slug: true } },
-          },
-        },
-      },
+    };
+
+    // Check if this exact line already exists (same user + variant + customText)
+    const existing = await this.prisma.cartItem.findFirst({
+      where: { userId, variantId: dto.variantId, customText },
     });
 
-    return item;
+    if (existing) {
+      return this.prisma.cartItem.update({
+        where: { id: existing.id },
+        data: { quantity: { increment: dto.quantity ?? 1 } },
+        include,
+      });
+    }
+
+    return this.prisma.cartItem.create({
+      data: { userId, variantId: dto.variantId, customText, quantity: dto.quantity ?? 1 },
+      include,
+    });
   }
 
   async updateItem(userId: string, cartItemId: string, dto: UpdateCartItemDto) {
