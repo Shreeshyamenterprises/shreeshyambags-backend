@@ -44,6 +44,13 @@ export class AuthService {
     });
     if (exists) throw new ConflictException('Email already exists');
 
+    if (dto.phone) {
+      const phoneExists = await this.prisma.user.findFirst({
+        where: { phone: dto.phone },
+      });
+      if (phoneExists) throw new ConflictException('Phone number already in use');
+    }
+
     const hashed = await bcrypt.hash(dto.password, 10);
 
     const user = await this.prisma.user.create({
@@ -148,7 +155,7 @@ export class AuthService {
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     if (dto.phone) {
-      const existing = await this.prisma.user.findUnique({
+      const existing = await this.prisma.user.findFirst({
         where: { phone: dto.phone },
       });
       if (existing && existing.id !== userId) {
@@ -234,7 +241,7 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findFirst({
       where: { resetToken: dto.token },
     });
 
