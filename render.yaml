@@ -2,7 +2,7 @@ services:
   - type: web
     name: nonwoven-api
     runtime: node
-    buildCommand: npm install --include=dev && npx prisma generate && npx tsc -p tsconfig.build.json
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build
     startCommand: npm run start:prod
     envVars:
       - key: NODE_ENV
