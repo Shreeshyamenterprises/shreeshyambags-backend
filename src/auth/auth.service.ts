@@ -206,9 +206,10 @@ export class AuthService {
       },
     });
 
-    const frontendUrl =
-      process.env.FRONTEND_URL || 'http://localhost:3001';
-    const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
+    const baseUrl = user.role === 'ADMIN'
+      ? (process.env.ADMIN_URL || 'http://localhost:3002')
+      : (process.env.FRONTEND_URL || 'http://localhost:3001');
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
     const transporter = this.getMailTransporter();
     await transporter.sendMail({
