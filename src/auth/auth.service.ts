@@ -206,18 +206,19 @@ export class AuthService {
       },
     });
 
-    const frontendUrl =
-      process.env.FRONTEND_URL || 'http://localhost:3001';
-    const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
+    const baseUrl = user.role === 'ADMIN'
+      ? (process.env.ADMIN_URL || 'http://localhost:3002')
+      : (process.env.FRONTEND_URL || 'http://localhost:3001');
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
     const transporter = this.getMailTransporter();
     await transporter.sendMail({
-      from: `"PieBags" <${process.env.SMTP_USER}>`,
+      from: `"Econest Packaging" <${process.env.SMTP_USER}>`,
       to: user.email,
-      subject: 'Reset your password – PieBags',
+      subject: 'Reset your password – Econest Packaging',
       html: `
         <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:16px;border:1px solid #f0f0f0;">
-          <p style="font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#ec4899;margin:0 0 12px;">PieBags</p>
+          <p style="font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#ec4899;margin:0 0 12px;">Econest Packaging</p>
           <h1 style="font-size:22px;font-weight:700;color:#18181b;margin:0 0 12px;">Reset your password</h1>
           <p style="font-size:14px;color:#52525b;line-height:1.6;margin:0 0 24px;">
             Hi ${user.name ?? 'there'},<br/>We received a request to reset the password for your account.
