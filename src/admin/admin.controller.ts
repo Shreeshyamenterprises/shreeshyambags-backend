@@ -62,6 +62,16 @@ export class AdminController {
     return this.admin.updateVariant(id, dto);
   }
 
+  @Post('products/bulk-delete')
+  bulkDeleteProducts(@Body() body: { ids: string[] }) {
+    return this.admin.bulkDeleteProducts(body.ids);
+  }
+
+  @Patch('products/bulk-status')
+  bulkUpdateStatus(@Body() body: { ids: string[]; isActive: boolean }) {
+    return this.admin.bulkUpdateStatus(body.ids, body.isActive);
+  }
+
   @Patch('products/:id')
   updateProduct(@Param('id') id: string, @Body() dto: UpdateProductDto) {
     return this.admin.updateProduct(id, dto);

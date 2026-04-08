@@ -12,7 +12,9 @@ export class AdminService {
   ) {}
 
   async createProduct(dto: CreateProductDto) {
-    const slug = await this.products.ensureUniqueSlug(dto.title);
+    const slug = dto.slug
+      ? dto.slug
+      : await this.products.ensureUniqueSlug(dto.title);
 
     return this.prisma.product.create({
       data: {
@@ -20,10 +22,11 @@ export class AdminService {
         slug,
         description: dto.description,
         basePrice: dto.basePrice,
+        isActive: dto.isActive ?? true,
       },
       include: {
         images: true,
-        variants: true,
+        variants: { include: { pricingTiers: true } },
       },
     });
   }
@@ -77,7 +80,7 @@ export class AdminService {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
-        variants: true,
+        variants: { include: { pricingTiers: true } },
         images: true,
       },
     });
@@ -107,7 +110,17 @@ export class AdminService {
 
   async updateVariant(
     variantId: string,
-    dto: { price?: number; stock?: number; isActive?: boolean },
+    dto: {
+      size?: string;
+      color?: string;
+      shape?: string;
+      sku?: string;
+      price?: number;
+      stock?: number;
+      gsm?: number;
+      pricePerKg?: number;
+      isActive?: boolean;
+    },
   ) {
     const variant = await this.prisma.variant.findUnique({
       where: { id: variantId },
@@ -120,10 +133,17 @@ export class AdminService {
     return this.prisma.variant.update({
       where: { id: variantId },
       data: {
-        price: dto.price ?? variant.price,
-        stock: dto.stock ?? variant.stock,
-        isActive: dto.isActive ?? variant.isActive,
+        ...(dto.size !== undefined && { size: dto.size }),
+        ...(dto.color !== undefined && { color: dto.color }),
+        ...(dto.shape !== undefined && { shape: dto.shape }),
+        ...(dto.sku !== undefined && { sku: dto.sku }),
+        ...(dto.price !== undefined && { price: dto.price }),
+        ...(dto.stock !== undefined && { stock: dto.stock }),
+        ...(dto.gsm !== undefined && { gsm: dto.gsm }),
+        ...(dto.pricePerKg !== undefined && { pricePerKg: dto.pricePerKg }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
+      include: { pricingTiers: true },
     });
   }
 
@@ -136,19 +156,63 @@ export class AdminService {
       throw new NotFoundException('Variant not found');
     }
 
-    return this.prisma.variant.update({
-      where: { id },
-      data: {
-        isActive: false,
-        stock: 0,
-      },
-    });
+    await this.prisma.pricingTier.deleteMany({ where: { variantId: id } });
+    await this.prisma.cartItem.deleteMany({ where: { variantId: id } });
+    await this.prisma.orderItem.deleteMany({ where: { variantId: id } });
+    await this.prisma.quoteRequest.deleteMany({ where: { variantId: id } });
+
+    return this.prisma.variant.delete({ where: { id } });
   }
 
   async deleteProduct(id: string) {
-    return this.prisma.product.delete({
-      where: { id },
+    // Get all variant ids for this product
+    const variants = await this.prisma.variant.findMany({
+      where: { productId: id },
+      select: { id: true },
     });
+    const variantIds = variants.map((v) => v.id);
+
+    // Delete deepest relations first
+    if (variantIds.length > 0) {
+      await this.prisma.pricingTier.deleteMany({ where: { variantId: { in: variantIds } } });
+      await this.prisma.cartItem.deleteMany({ where: { variantId: { in: variantIds } } });
+      await this.prisma.orderItem.deleteMany({ where: { variantId: { in: variantIds } } });
+      await this.prisma.quoteRequest.deleteMany({ where: { variantId: { in: variantIds } } });
+    }
+    await this.prisma.quoteRequest.deleteMany({ where: { productId: id } });
+    await this.prisma.variant.deleteMany({ where: { productId: id } });
+    await this.prisma.productImage.deleteMany({ where: { productId: id } });
+
+    return this.prisma.product.delete({ where: { id } });
+  }
+
+  async bulkDeleteProducts(ids: string[]) {
+    const variants = await this.prisma.variant.findMany({
+      where: { productId: { in: ids } },
+      select: { id: true },
+    });
+    const variantIds = variants.map((v) => v.id);
+
+    if (variantIds.length > 0) {
+      await this.prisma.pricingTier.deleteMany({ where: { variantId: { in: variantIds } } });
+      await this.prisma.cartItem.deleteMany({ where: { variantId: { in: variantIds } } });
+      await this.prisma.orderItem.deleteMany({ where: { variantId: { in: variantIds } } });
+      await this.prisma.quoteRequest.deleteMany({ where: { variantId: { in: variantIds } } });
+    }
+    await this.prisma.quoteRequest.deleteMany({ where: { productId: { in: ids } } });
+    await this.prisma.variant.deleteMany({ where: { productId: { in: ids } } });
+    await this.prisma.productImage.deleteMany({ where: { productId: { in: ids } } });
+    await this.prisma.product.deleteMany({ where: { id: { in: ids } } });
+
+    return { deleted: ids.length };
+  }
+
+  async bulkUpdateStatus(ids: string[], isActive: boolean) {
+    await this.prisma.product.updateMany({
+      where: { id: { in: ids } },
+      data: { isActive },
+    });
+    return { updated: ids.length };
   }
 
   async deleteImage(id: string) {
@@ -165,7 +229,16 @@ export class AdminService {
     });
   }
 
-  async updateProduct(id: string, dto: { isActive?: boolean }) {
+  async updateProduct(
+    id: string,
+    dto: {
+      title?: string;
+      slug?: string;
+      description?: string;
+      basePrice?: number;
+      isActive?: boolean;
+    },
+  ) {
     const product = await this.prisma.product.findUnique({
       where: { id },
     });
@@ -177,7 +250,11 @@ export class AdminService {
     return this.prisma.product.update({
       where: { id },
       data: {
-        isActive: dto.isActive ?? product.isActive,
+        ...(dto.title !== undefined && { title: dto.title }),
+        ...(dto.slug !== undefined && { slug: dto.slug }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.basePrice !== undefined && { basePrice: dto.basePrice }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
     });
   }
